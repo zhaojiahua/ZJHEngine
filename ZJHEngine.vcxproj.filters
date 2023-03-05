@@ -165,6 +165,9 @@
     <ClCompile Include="Engine\core\WinMainCmdParameters.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="Engine\platform\windows\WinMessageProcess.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="simple_library\private\simple_channel\simple_net_connetion\simple_connetion_tcp.h">
@@ -360,6 +363,9 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Debugs\Logs\SimpleLog.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\platform\windows\WinMessageProcess.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

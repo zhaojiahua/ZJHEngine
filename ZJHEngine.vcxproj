@@ -131,6 +131,7 @@
     <ClCompile Include="Engine\EngineFactory.cpp" />
     <ClCompile Include="Engine\core\Engine.cpp" />
     <ClCompile Include="Engine\platform\windows\EngineWind.cpp" />
+    <ClCompile Include="Engine\platform\windows\WinMessageProcess.cpp" />
     <ClCompile Include="Engine\zjhEnginLunch.cpp" />
     <ClCompile Include="simple_library\private\simple_channel\simple_io_stream\simple_io_stream.cpp" />
     <ClCompile Include="simple_library\private\simple_channel\simple_net_channel\simple_channel.cpp" />
@@ -185,6 +186,7 @@
     <ClInclude Include="Engine\core\Engine.h" />
     <ClInclude Include="Engine\EnginLunchMain.h" />
     <ClInclude Include="Engine\platform\windows\EngineWind.h" />
+    <ClInclude Include="Engine\platform\windows\WinMessageProcess.h" />
     <ClInclude Include="simple_library\private\simple_channel\simple_net_connetion\simple_connetion_tcp.h" />
     <ClInclude Include="simple_library\private\simple_channel\simple_net_connetion\simple_connetion_udp.h" />
     <ClInclude Include="simple_library\private\simple_channel\simple_net_drive\simple_net_drive_tcp.h" />

@@ -9,12 +9,13 @@ int Exit(ZEngine* engine);
 int WINAPI WinMain(HINSTANCE thisInstance, HINSTANCE preInstance, LPSTR cmdLine, int showCmd)
 {
 	ZEngine* engine = ZEngineFactory::CreateEngine();
-	
 	//初始化
 	int result = Init(engine, thisInstance, preInstance, cmdLine, showCmd);
 
 	//渲染
-	Tick(engine);
+	while (true) {
+		Tick(engine);
+	}
 
 	//退出
 	result = Exit(engine);
