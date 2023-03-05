@@ -5,6 +5,8 @@
 class ZEngineWind : public ZEngine
 {
 public:
+	ZEngineWind();
+
 	virtual int PreInit(ZWinMainCmdParameters inparas);
 	virtual int Init();
 	virtual int PostInit();
@@ -23,6 +25,9 @@ private:
 
 protected:
 	HWND mHwnd;//主窗口句柄
+	UINT mMultiSampleLevel;//多重采样层数
+	bool bMultiSample;
+
 protected:
 	Microsoft::WRL::ComPtr<IDXGIFactory4> dxgiFactory;	//创建DX图形基础结构
 	Microsoft::WRL::ComPtr<ID3D12Device> d3dDevice;	//创建命令适配器
@@ -33,7 +38,6 @@ protected:
 	Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> commandList;//CPU命令列表
 
 	Microsoft::WRL::ComPtr<IDXGISwapChain> swapChain;//交换链
-
 
 };
 #endif

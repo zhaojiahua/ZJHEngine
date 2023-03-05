@@ -4,6 +4,10 @@
 #include "../../config/EngineConfig.h"
 
 #if defined(_WIN32)
+ZEngineWind::ZEngineWind()
+	:mMultiSampleLevel(0),bMultiSample(false), mHwnd(NULL)
+{
+}
 int ZEngineWind::PreInit(ZWinMainCmdParameters inparas)
 {
 	//日志系统处理
@@ -140,6 +144,17 @@ bool ZEngineWind::InitDirect3D()
 		, IID_PPV_ARGS(commandList.GetAddressOf())));
 	commandList->Close();//关闭当前列表
 
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////多充采样设置
+	D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS qualityLevel;
+	qualityLevel.SampleCount = 4;
+	qualityLevel.Flags = D3D12_MULTISAMPLE_QUALITY_LEVEL_FLAGS::D3D12_MULTISAMPLE_QUALITY_LEVELS_FLAG_NONE;
+	qualityLevel.NumQualityLevels = 0;
+	ANALYSIS_HRESULT(d3dDevice->CheckFeatureSupport(
+		D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS,
+		&qualityLevel,
+		sizeof(qualityLevel)));
+	mMultiSampleLevel = qualityLevel.NumQualityLevels;
+
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////交换链
 	swapChain.Reset();
 	DXGI_SWAP_CHAIN_DESC swapChainDesc;
@@ -154,6 +169,8 @@ bool ZEngineWind::InitDirect3D()
 	swapChainDesc.Windowed = true;//以窗口方式运行
 	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT::DXGI_SWAP_EFFECT_DISCARD;//交换缓冲后丢弃
 	swapChainDesc.Flags = DXGI_SWAP_CHAIN_FLAG::DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+	swapChainDesc.SampleDesc.Count = bMultiSample ? 4 : 1;
+	swapChainDesc.SampleDesc.Quality = bMultiSample ? (mMultiSampleLevel - 1) : 0;
 	dxgiFactory->CreateSwapChain(commandQueue.Get(), &swapChainDesc, swapChain.GetAddressOf());
 
 	return false;
