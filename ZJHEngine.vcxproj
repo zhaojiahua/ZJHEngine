@@ -80,6 +80,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>d3dcompiler.lib;dxgi.lib;dxguid.lib;D3D12.lib;comctl32.lib;winmm.lib;d3d9.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -108,6 +109,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>d3dcompiler.lib;dxgi.lib;dxguid.lib;D3D12.lib;comctl32.lib;winmm.lib;d3d9.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -127,7 +129,9 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Engine\config\EngineConfig.cpp" />
     <ClCompile Include="Engine\core\WinMainCmdParameters.cpp" />
+    <ClCompile Include="Engine\Debugs\EngineDebug.cpp" />
     <ClCompile Include="Engine\EngineFactory.cpp" />
     <ClCompile Include="Engine\core\Engine.cpp" />
     <ClCompile Include="Engine\platform\windows\EngineWind.cpp" />
@@ -180,7 +184,9 @@
     <ClCompile Include="simple_library\third_party_library\tinyxml\tinyxmlparser.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Engine\config\EngineConfig.h" />
     <ClInclude Include="Engine\core\WinMainCmdParameters.h" />
+    <ClInclude Include="Engine\Debugs\EngineDebug.h" />
     <ClInclude Include="Engine\Debugs\Logs\SimpleLog.h" />
     <ClInclude Include="Engine\EngineFactory.h" />
     <ClInclude Include="Engine\core\Engine.h" />

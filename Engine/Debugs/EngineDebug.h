@@ -2,6 +2,7 @@
 
 #define ANALYSIS_HRESULT(inValue) \
 {\
+	HRESULT handleResult = inValue;\
 	if (FAILED(inValue)) \
 	{\
 		ZLog_error("error = %i",(int)inValue);\

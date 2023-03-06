@@ -24,12 +24,15 @@ int WINAPI WinMain(HINSTANCE thisInstance, HINSTANCE preInstance, LPSTR cmdLine,
 }
 
 int Init(ZEngine* engine, HINSTANCE thisInstance, HINSTANCE preInstance, LPSTR cmdLine, int showCmd) {
-	int notsuccess = engine->PreInit(ZWinMainCmdParameters(thisInstance, preInstance, cmdLine, showCmd));
+
+	ZWinMainCmdParameters winmainParas(thisInstance, preInstance, cmdLine, showCmd);
+
+	int notsuccess = engine->PreInit(winmainParas);
 	if (notsuccess) {
 		ZLog_error("[%i] ZEngine preInitialize error", notsuccess);
 		return notsuccess;
 	}
-	notsuccess = engine->Init();
+	notsuccess = engine->Init(winmainParas);
 	if (notsuccess) {
 		ZLog_error("[%i] ZEngine initialize error", notsuccess);
 		return notsuccess;

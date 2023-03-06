@@ -8,7 +8,7 @@ public:
 	ZEngineWind();
 
 	virtual int PreInit(ZWinMainCmdParameters inparas);
-	virtual int Init();
+	virtual int Init(ZWinMainCmdParameters inparas);
 	virtual int PostInit();
 
 	virtual void Tick();
@@ -18,26 +18,47 @@ public:
 	virtual int PostExit();
 
 private:
-	//³õÊ¼»¯windows
+	//ï¿½ï¿½Ê¼ï¿½ï¿½windows
 	bool InitWindow(ZWinMainCmdParameters inparas);
-	//³õÊ¼»¯D3D
+	//ï¿½ï¿½Ê¼ï¿½ï¿½D3D
 	bool InitDirect3D();
 
 protected:
-	HWND mHwnd;//Ö÷´°¿Ú¾ä±ú
-	UINT mMultiSampleLevel;//¶àÖØ²ÉÑù²ãÊı
-	bool bMultiSample;
+	void WaitGPUCommandQueueComplete();
 
 protected:
-	Microsoft::WRL::ComPtr<IDXGIFactory4> dxgiFactory;	//´´½¨DXÍ¼ĞÎ»ù´¡½á¹¹
-	Microsoft::WRL::ComPtr<ID3D12Device> d3dDevice;	//´´½¨ÃüÁîÊÊÅäÆ÷
-	Microsoft::WRL::ComPtr<ID3D12Fence> d3dFence;	//"Î§À¸",Æ½ºâCPUºÍGPUÖ®¼äµÄ¼ÆËã
+	HWND mHwnd;//ï¿½ï¿½ï¿½ï¿½ï¿½Ú¾ï¿½ï¿½
+	UINT mMultiSampleLevel;//ï¿½ï¿½ï¿½Ø²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+	bool bMultiSample;
+	DXGI_FORMAT mBackBufferFormat;	//åå°ç¼“å†²çš„å›¾ç‰‡æ ¼å¼
+	DXGI_FORMAT mDepthStencilFormat;	//æ·±åº¦æ¨¡ç‰ˆç¼“å†²çš„æ ¼å¼
+	UINT mRTVDescSize;
 
-	Microsoft::WRL::ComPtr<ID3D12CommandQueue> commandQueue;//GPUÃüÁî¶ÓÁĞ
-	Microsoft::WRL::ComPtr<ID3D12CommandAllocator> commandAllocator;//ÃüÁîµ÷¶ÈÆ÷
-	Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> commandList;//CPUÃüÁîÁĞ±í
+	UINT64 currentFenceIndex;
+	int currentSwapBufferIndex;
 
-	Microsoft::WRL::ComPtr<IDXGISwapChain> swapChain;//½»»»Á´
+	//è§†å›¾å°ºå¯¸
+	D3D12_VIEWPORT viewportInfo;
+	D3D12_RECT viewportRect;
+
+protected:
+	Microsoft::WRL::ComPtr<IDXGIFactory4> dxgiFactory;	//ï¿½ï¿½ï¿½ï¿½DXÍ¼ï¿½Î»ï¿½ï¿½ï¿½ï¿½á¹¹
+	Microsoft::WRL::ComPtr<ID3D12Device> d3dDevice;	//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+	Microsoft::WRL::ComPtr<ID3D12Fence> d3dFence;	//"Î§ï¿½ï¿½",Æ½ï¿½ï¿½CPUï¿½ï¿½GPUÖ®ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½
+
+	Microsoft::WRL::ComPtr<ID3D12CommandQueue> commandQueue;//GPUï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+	Microsoft::WRL::ComPtr<ID3D12CommandAllocator> commandAllocator;//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+	Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> commandList;//CPUï¿½ï¿½ï¿½ï¿½ï¿½Ğ±ï¿½
+
+	Microsoft::WRL::ComPtr<IDXGISwapChain> swapChain;//äº¤æ¢é“¾
+
+	//èµ„æºæè¿°ç¬¦å’Œå †
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> RTVHeap;
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> DSVHeap;
+
+	//èµ„æº
+	vector<Microsoft::WRL::ComPtr<ID3D12Resource>> mSwapBuffers;
+	Microsoft::WRL::ComPtr<ID3D12Resource> mDepthStencilBuffer;
 
 };
 #endif

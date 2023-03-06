@@ -2,11 +2,14 @@
 #include "../simple_library/public/simple_library.h"
 #include "Debugs/Logs/SimpleLog.h"
 
-#include <wrl.h>	//°üº¬windowäÖÈ¾µÄ»ù±¾µÄ¿â
+#include <wrl.h>	//ï¿½ï¿½ï¿½ï¿½windowï¿½ï¿½È¾ï¿½Ä»ï¿½ï¿½ï¿½ï¿½Ä¿ï¿½
 #include <dxgi1_4.h>	//
-#include <d3d12.h>	//d3d12µÄAPI
-#include <D3Dcompiler.h>	//ÓÃÀ´±àÒë×ÅÉ«Æ÷´úÂë
-#include <DirectXMath.h>		//ÊıÑ§¼ÆËãµÄ¿â
-#include <DirectXPackedVector.h>	//¹ØÓÚÏòÁ¿¼ÆËãµÄ¿â
-#include <DirectXCollision.h>	//¹ØÓÚÅö×²¼ÆËãµÄ¿â
-#include <DirectXColors.h>	//´óÁ¿µÄÑÕÉ«Ãû³Æ
+//#include <d3d12.h>	//d3d12ï¿½ï¿½API
+#include "rendering/DirectX12/d3dx12.h"	//å¾®è½¯æä¾›çš„å·¥å…·åŒ…,è¿™é‡Œé¢åŒ…å«äº†<d3d12.h>
+#include <D3Dcompiler.h>	//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½É«ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+#include <DirectXMath.h>		//ï¿½ï¿½Ñ§ï¿½ï¿½ï¿½ï¿½Ä¿ï¿½
+#include <DirectXPackedVector.h>	//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¿ï¿½
+#include <DirectXCollision.h>	//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½×²ï¿½ï¿½ï¿½ï¿½Ä¿ï¿½
+#include <DirectXColors.h>	//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½É«ï¿½ï¿½ï¿½ï¿½
+
+using namespace std;

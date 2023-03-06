@@ -14,7 +14,11 @@ public:
 #endif
 	) = 0;
 	//初始化
-	virtual int Init() = 0;
+	virtual int Init(
+#if defined(_WIN32)
+		ZWinMainCmdParameters inparas
+#endif
+	) = 0;
 	//初始化完成后的收尾工作
 	virtual int PostInit() = 0;
 

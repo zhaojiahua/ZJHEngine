@@ -5,39 +5,123 @@
 
 #if defined(_WIN32)
 ZEngineWind::ZEngineWind()
-	:mMultiSampleLevel(0),bMultiSample(false), mHwnd(NULL)
+	:mMultiSampleLevel(0),
+	bMultiSample(false),
+	mHwnd(NULL),
+	mBackBufferFormat(DXGI_FORMAT::DXGI_FORMAT_B8G8R8A8_UNORM),
+	mDepthStencilFormat(DXGI_FORMAT_D24_UNORM_S8_UINT),
+	currentFenceIndex(0),currentSwapBufferIndex(0)
 {
+	for (int i = 0; i < ZEngineRenderConfig::GetRenderConfig()->mSwapChainCount; i++) {
+		mSwapBuffers.push_back(Microsoft::WRL::ComPtr<ID3D12Resource>());
+	}
 }
 int ZEngineWind::PreInit(ZWinMainCmdParameters inparas)
 {
-	//ÈÕÖ¾ÏµÍ³´¦Àí
+	//æ—¥å¿—ç³»ç»Ÿåˆå§‹åŒ–
 	const char LogPath[] = "log";
 	init_log_system(LogPath);
 	ZLog_sucess("Log init.");
-	//ÏûÏ¢´¦Àí
+	//å¤„ç†å‘½ä»¤
 
 
-	if (InitWindow(inparas)) {
-
-	}
 	ZLog_sucess("Engine preInitialization complete.");
 	return 0;
 }
 
-int ZEngineWind::Init()
+int ZEngineWind::Init(ZWinMainCmdParameters inparas)
 {
+	//åˆå§‹åŒ–Windows
+	if (InitWindow(inparas)) {
+
+	}
+	//åˆå§‹åŒ–Direction3D
+	if (InitDirect3D()) {
+
+	}
 	ZLog_sucess("Engine Initialization complete.");
 	return 0;
 }
 
 int ZEngineWind::PostInit()
 {
+	WaitGPUCommandQueueComplete();
+	//åˆå§‹åŒ–ç¼“å†²åŒº
+	for (auto item : mSwapBuffers) {
+		item.Reset();
+	}
+	mDepthStencilBuffer.Reset();//åˆå§‹åŒ–æ·±åº¦ç¼“å†²åŒº
+	//äº¤æ¢é“¾ç¼“å†²åŒºè‡ªé€‚åº”è®¾ç½®
+	swapChain->ResizeBuffers(
+		ZEngineRenderConfig::GetRenderConfig()->mSwapChainCount,
+		ZEngineRenderConfig::GetRenderConfig()->mScreenWidth,
+		ZEngineRenderConfig::GetRenderConfig()->mScreenHeight,
+		mBackBufferFormat, DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH);
+
+	//ç»‘å®šèµ„æº
+	//æ¸²æŸ“ç›®æ ‡Buffer
+	mRTVDescSize = d3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);//è·å–RTVæ¸²æŸ“ç¼“å†²çš„å¤§å°
+	CD3DX12_CPU_DESCRIPTOR_HANDLE heapHandle(RTVHeap->GetCPUDescriptorHandleForHeapStart());//è·å–å †èµ„æºä½ç½®
+	heapHandle.ptr = 0;
+	for (int i = 0; i < ZEngineRenderConfig::GetRenderConfig()->mSwapChainCount; i++) {
+		swapChain->GetBuffer(i, IID_PPV_ARGS(&mSwapBuffers[i]));
+		d3dDevice->CreateRenderTargetView(mSwapBuffers[i].Get(), nullptr, heapHandle);
+		heapHandle.Offset(1, mRTVDescSize);
+	}
+	
+	D3D12_RESOURCE_DESC resourceDesc;
+	resourceDesc.Width = ZEngineRenderConfig::GetRenderConfig()->mScreenWidth;
+	resourceDesc.Height = ZEngineRenderConfig::GetRenderConfig()->mScreenHeight;
+	resourceDesc.Alignment = 0;
+	resourceDesc.MipLevels = 1;
+	resourceDesc.DepthOrArraySize = 1;
+	resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	resourceDesc.SampleDesc.Count = bMultiSample ? 4 : 1;
+	resourceDesc.SampleDesc.Count = bMultiSample ? (mMultiSampleLevel - 1) : 0;
+	resourceDesc.Format = DXGI_FORMAT_R24G8_TYPELESS;
+	resourceDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+	resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+	D3D12_CLEAR_VALUE clearValue;
+	clearValue.DepthStencil.Depth = 1.0;
+	clearValue.DepthStencil.Stencil = 0;
+	clearValue.Format = mDepthStencilFormat;
+	CD3DX12_HEAP_PROPERTIES tempProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+	d3dDevice->CreateCommittedResource(&tempProperties, D3D12_HEAP_FLAG_NONE, &resourceDesc, D3D12_RESOURCE_STATE_COMMON, &clearValue, IID_PPV_ARGS(mDepthStencilBuffer.GetAddressOf()));
+	//æ·±åº¦æ¨¡ç‰ˆBuffer
+	D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
+	dsvDesc.Format = mDepthStencilFormat;
+	dsvDesc.Texture2D.MipSlice = 0;
+	dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+	dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
+	d3dDevice->CreateDepthStencilView(mDepthStencilBuffer.Get(), &dsvDesc, DSVHeap->GetCPUDescriptorHandleForHeapStart());
+
+	CD3DX12_RESOURCE_BARRIER tempBarrier = CD3DX12_RESOURCE_BARRIER::Transition(mDepthStencilBuffer.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+	commandList->ResourceBarrier(1, &tempBarrier);
+	commandList->Close();
+	//æäº¤å‘½ä»¤
+	ID3D12CommandList* cmdList[] = { commandList.Get() };
+	commandQueue->ExecuteCommandLists(_countof(cmdList), cmdList);
+
+	//è§†å›¾çª—å£è®¾ç½®
+	viewportInfo.TopLeftX = 0; viewportInfo.TopLeftY = 0;
+	viewportInfo.Width = ZEngineRenderConfig::GetRenderConfig()->mScreenWidth;
+	viewportInfo.Height = ZEngineRenderConfig::GetRenderConfig()->mScreenHeight;
+	viewportInfo.MinDepth = 0.0f;
+	viewportInfo.MaxDepth = 1.0f;
+
+	viewportRect.left = 0; viewportRect.top = 0;
+	viewportRect.right = ZEngineRenderConfig::GetRenderConfig()->mScreenWidth;
+	viewportRect.bottom = ZEngineRenderConfig::GetRenderConfig()->mScreenHeight;
+
+	WaitGPUCommandQueueComplete();
+
 	ZLog_sucess("Engine postInitialization complete.");
 	return 0;
 }
 
 void ZEngineWind::Tick()
 {
+
 }
 
 int ZEngineWind::PreExit()
@@ -61,43 +145,43 @@ int ZEngineWind::PostExit()
 bool ZEngineWind::InitWindow(ZWinMainCmdParameters inparas)
 {
 	WNDCLASSEX windClass;
-	windClass.cbSize = sizeof(WNDCLASSEX);//¸Ä¶ÔÏóÕ¼ÓÃÄÚ´æ´óĞ¡
-	windClass.cbClsExtra = 0;//ÊÇ·ñĞèÒª¶îÍâ¿Õ¼ä
-	windClass.cbWndExtra = 0;//ÊÇ·ñĞèÒª¶îÍâÄÚ´æ 
-	windClass.hbrBackground = nullptr;//Ä¬ÈÏGDI²Á³ı±³¾°
-	windClass.hCursor = LoadCursor(NULL, IDC_ARROW);//ÉèÖÃÒ»¸ö¼ıÍ·¹â±ê
-	windClass.hIcon = nullptr;//Ó¦ÓÃ³ÌĞò·ÅÔÚ´ÅÅÌÉÏÏÔÊ¾µÄÍ¼±ê
-	windClass.hIconSm = NULL;//Ó¦ÓÃ³ÌĞò×óÉÏ½ÇÏÔÊ¾µÄÍ¼±ê
-	windClass.hInstance = inparas.mPreInstance;//´°¿ÚÊµÀı
-	windClass.lpszClassName = L"ZJHEngine";//´°¿ÚÃû×Ö
+	windClass.cbSize = sizeof(WNDCLASSEX);//ï¿½Ä¶ï¿½ï¿½ï¿½Õ¼ï¿½ï¿½ï¿½Ú´ï¿½ï¿½Ğ¡
+	windClass.cbClsExtra = 0;//ï¿½Ç·ï¿½ï¿½ï¿½Òªï¿½ï¿½ï¿½ï¿½Õ¼ï¿½
+	windClass.cbWndExtra = 0;//ï¿½Ç·ï¿½ï¿½ï¿½Òªï¿½ï¿½ï¿½ï¿½ï¿½Ú´ï¿½ 
+	windClass.hbrBackground = nullptr;//Ä¬ï¿½ï¿½GDIï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+	windClass.hCursor = LoadCursor(NULL, IDC_ARROW);//ï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½ï¿½ï¿½Í·ï¿½ï¿½ï¿½
+	windClass.hIcon = nullptr;//Ó¦ï¿½Ã³ï¿½ï¿½ï¿½ï¿½ï¿½Ú´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê¾ï¿½ï¿½Í¼ï¿½ï¿½
+	windClass.hIconSm = NULL;//Ó¦ï¿½Ã³ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ï½ï¿½ï¿½ï¿½Ê¾ï¿½ï¿½Í¼ï¿½ï¿½
+	windClass.hInstance = inparas.mPreInstance;//ï¿½ï¿½ï¿½ï¿½Êµï¿½ï¿½
+	windClass.lpszClassName = L"ZJHEngine";//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 	windClass.lpszMenuName = nullptr;
-	windClass.style = CS_VREDRAW | CS_HREDRAW;//´¹Ö±ºÍË®Æ½ÖØ»æÖÆ
-	windClass.lpfnWndProc = (WNDPROC)EngineWndProc;//´¦ÀíÏûÏ¢µÄ»Øµ÷º¯Êı
+	windClass.style = CS_VREDRAW | CS_HREDRAW;//ï¿½ï¿½Ö±ï¿½ï¿½Ë®Æ½ï¿½Ø»ï¿½ï¿½ï¿½
+	windClass.lpfnWndProc = (WNDPROC)EngineWndProc;//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ï¢ï¿½Ä»Øµï¿½ï¿½ï¿½ï¿½ï¿½
 
-	//×¢²á´°¿Ú
+	//×¢ï¿½á´°ï¿½ï¿½
 	ATOM registerAtom = RegisterClassEx(&windClass);
 	if (!registerAtom) {
 		ZLog_error("Register window failed.");
 		MessageBox(NULL, L"Register failed", L"Error", MB_OK);
 	}
-	//ÉèÖÃ´°¿Ú
-	RECT rect = { 0,0,ZEngineRenderConfig::GetRenderConfig()->mScreenWidth,ZEngineRenderConfig::GetRenderConfig()->mScreenHeight };//´°¿Ú·Ö±æÂÊ
+	//ï¿½ï¿½ï¿½Ã´ï¿½ï¿½ï¿½
+	RECT rect = { 0,0,ZEngineRenderConfig::GetRenderConfig()->mScreenWidth,ZEngineRenderConfig::GetRenderConfig()->mScreenHeight };//ï¿½ï¿½ï¿½Ú·Ö±ï¿½ï¿½ï¿½
 	AdjustWindowRect(&rect, WS_OVERLAPPEDWINDOW, NULL);
 
 	int wndwidth = rect.right - rect.left;
 	int wndheight = rect.bottom - rect.top;
 
-	//´´½¨´°¿ÚÊµÀı
+	//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Êµï¿½ï¿½
 	mHwnd = CreateWindowEx(
-		NULL,//´°¿Ú¶îÍâ·ç¸ñ
-		L"ZJHEngine",//´°¿ÚÃû
-		L"ZJHEngineWnd",//ÏÔÊ¾ÔÚ´°¿Ú±êÌâÀ¸µÄÃû×Ö
-		WS_OVERLAPPEDWINDOW,//´°¿Ú·ç¸ñ
-		100,100,//´°¿Ú×ø±ê
-		wndwidth, wndheight,//´°¿Ú¿í¸ß
-		NULL,//¸¸´°¿Ú¾ä±ú
-		nullptr,//²Ëµ¥¾ä±ú
-		inparas.mPreInstance,//´°¿ÚÊµÀı
+		NULL,//ï¿½ï¿½ï¿½Ú¶ï¿½ï¿½ï¿½ï¿½ï¿½
+		L"ZJHEngine",//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+		L"ZJHEngineWnd",//ï¿½ï¿½Ê¾ï¿½Ú´ï¿½ï¿½Ú±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+		WS_OVERLAPPEDWINDOW,//ï¿½ï¿½ï¿½Ú·ï¿½ï¿½
+		100,100,//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+		wndwidth, wndheight,//ï¿½ï¿½ï¿½Ú¿ï¿½ï¿½
+		NULL,//ï¿½ï¿½ï¿½ï¿½ï¿½Ú¾ï¿½ï¿½
+		nullptr,//ï¿½Ëµï¿½ï¿½ï¿½ï¿½
+		inparas.mPreInstance,//ï¿½ï¿½ï¿½ï¿½Êµï¿½ï¿½
 		NULL
 	);
 	if (!mHwnd) {
@@ -111,40 +195,49 @@ bool ZEngineWind::InitWindow(ZWinMainCmdParameters inparas)
 	ZLog_sucess("Windows Initialization complete.");
 	return true;
 }
+
 bool ZEngineWind::InitDirect3D()
 {
+	//Debug
+	Microsoft::WRL::ComPtr<ID3D12Debug> d3dDebug;
+	if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&d3dDebug)))) {
+		d3dDebug->EnableDebugLayer();
+	}
 
-	ANALYSIS_HRESULT(CreateDXGIFactory1(IID_PPV_ARGS(&dxgiFactory)));	//´´½¨¹¤³§
+	ANALYSIS_HRESULT(CreateDXGIFactory1(IID_PPV_ARGS(&dxgiFactory)));	//åˆ›å»ºå¼•æ“å·¥å‚
 
-	HRESULT d3dDeviceResult = D3D12CreateDevice(NULL, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&d3dDevice));//´´½¨Çı¶¯
+	HRESULT d3dDeviceResult = D3D12CreateDevice(NULL, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&d3dDevice));//åˆ›å»ºå¼•æ“é©±åŠ¨
 	if (FAILED(d3dDeviceResult)) {
-		//Èç¹û´´½¨Ó²¼şÊÊÅäÆ÷Ê§°Ü¾Í´´½¨Èí¼şÊÊÅäÆ÷
+		//å¦‚æœç¡¬ä»¶é©±åŠ¨ä¸æˆåŠŸå°±åˆ›å»ºè½¯ä»¶é©±åŠ¨
 		Microsoft::WRL::ComPtr<IDXGIAdapter> warpAdapter;
 		ANALYSIS_HRESULT(dxgiFactory->EnumWarpAdapter(IID_PPV_ARGS(&warpAdapter)));
 		ANALYSIS_HRESULT(D3D12CreateDevice(warpAdapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&d3dDevice)));
 	}
-	ANALYSIS_HRESULT(d3dDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&d3dFence)));//´´½¨Fence
+	ANALYSIS_HRESULT(d3dDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&d3dFence)));//ï¿½ï¿½ï¿½ï¿½Fence
 
-	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////³õÊ¼»¯ÃüÁî¶ÔÏó
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 	D3D12_COMMAND_QUEUE_DESC cmdQueueDesc = {};
-	cmdQueueDesc.Type = D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_DIRECT;//Ö±½Ó±»GPUµ÷ÓÃ
-	cmdQueueDesc.Flags = D3D12_COMMAND_QUEUE_FLAGS::D3D12_COMMAND_QUEUE_FLAG_NONE;//ÔÊĞíÃüÁî³¬Ê±
-	//´´½¨ÃüÁî¶ÓÁĞ
+	cmdQueueDesc.Type = D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_DIRECT;//Ö±ï¿½Ó±ï¿½GPUï¿½ï¿½ï¿½ï¿½
+	cmdQueueDesc.Flags = D3D12_COMMAND_QUEUE_FLAGS::D3D12_COMMAND_QUEUE_FLAG_NONE;//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½î³¬Ê±
+	//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 	ANALYSIS_HRESULT(d3dDevice->CreateCommandQueue(&cmdQueueDesc, IID_PPV_ARGS(&commandQueue)));
-	//´´½¨·ÖÅäÆ÷
+	//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 	ANALYSIS_HRESULT(d3dDevice->CreateCommandAllocator(
 		D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_DIRECT,
 		IID_PPV_ARGS(commandAllocator.GetAddressOf())));
-	//´´½¨ÃüÁîÁĞ±í
-	ANALYSIS_HRESULT(d3dDevice->CreateCommandList(
-		0,//Ä¬ÈÏµ¥¸öGPU
-		D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_DIRECT,//Ö±½Óµ÷ÓÃ
-		commandAllocator.Get(),//¹ØÁªÃüÁî·ÖÅäÆ÷
-		NULL	//¹ÜÏß×´Ì¬
-		, IID_PPV_ARGS(commandList.GetAddressOf())));
-	commandList->Close();//¹Ø±Õµ±Ç°ÁĞ±í
+	//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ğ±ï¿½
+	HRESULT createResult = d3dDevice->CreateCommandList(
+		0,//Ä¬ï¿½Ïµï¿½ï¿½ï¿½GPU
+		D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_DIRECT,//Ö±ï¿½Óµï¿½ï¿½ï¿½
+		commandAllocator.Get(),//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+		NULL	//ï¿½ï¿½ï¿½ï¿½×´Ì¬
+		, IID_PPV_ARGS(commandList.GetAddressOf()));
+	if (FAILED(createResult)) {
+		ZLog_error(" commandList error = % i", (int)createResult);
+	}
+	commandList->Close();//ï¿½Ø±Õµï¿½Ç°ï¿½Ğ±ï¿½
 
-	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////¶à³ä²ÉÑùÉèÖÃ
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 	D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS qualityLevel;
 	qualityLevel.SampleCount = 4;
 	qualityLevel.Flags = D3D12_MULTISAMPLE_QUALITY_LEVEL_FLAGS::D3D12_MULTISAMPLE_QUALITY_LEVELS_FLAG_NONE;
@@ -155,7 +248,7 @@ bool ZEngineWind::InitDirect3D()
 		sizeof(qualityLevel)));
 	mMultiSampleLevel = qualityLevel.NumQualityLevels;
 
-	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////½»»»Á´
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////äº¤æ¢é“¾
 	swapChain.Reset();
 	DXGI_SWAP_CHAIN_DESC swapChainDesc;
 	swapChainDesc.BufferDesc.Width = ZEngineRenderConfig::GetRenderConfig()->mScreenWidth;
@@ -163,16 +256,48 @@ bool ZEngineWind::InitDirect3D()
 	swapChainDesc.BufferDesc.RefreshRate.Numerator = ZEngineRenderConfig::GetRenderConfig()->mFreshRate;
 	swapChainDesc.BufferDesc.RefreshRate.Denominator = 1;
 	swapChainDesc.BufferCount = ZEngineRenderConfig::GetRenderConfig()->mSwapChainCount;
-	swapChainDesc.BufferDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER::DXGI_MODE_SCANLINE_ORDER_LOWER_FIELD_FIRST;
-	swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;//Ê¹ÓÃ±íÃæ»ò×ÊÔ´×÷ÎªÊä³öäÖÈ¾Ä¿±ê
-	swapChainDesc.OutputWindow = mHwnd;//Ö¸¶¨Ö÷´°¿Ú
-	swapChainDesc.Windowed = true;//ÒÔ´°¿Ú·½Ê½ÔËĞĞ
-	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT::DXGI_SWAP_EFFECT_DISCARD;//½»»»»º³åºó¶ªÆú
+	swapChainDesc.BufferDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER::DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
+	swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;//Ê¹ï¿½Ã±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ô´ï¿½ï¿½Îªï¿½ï¿½ï¿½ï¿½ï¿½È¾Ä¿ï¿½ï¿½
+	swapChainDesc.OutputWindow = mHwnd;//Ö¸ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+	swapChainDesc.Windowed = true;//ï¿½Ô´ï¿½ï¿½Ú·ï¿½Ê½ï¿½ï¿½ï¿½ï¿½
+	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT::DXGI_SWAP_EFFECT_FLIP_DISCARD;//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 	swapChainDesc.Flags = DXGI_SWAP_CHAIN_FLAG::DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+	swapChainDesc.BufferDesc.Format = mBackBufferFormat;
+	//é‡‡æ ·è®¾ç½®
 	swapChainDesc.SampleDesc.Count = bMultiSample ? 4 : 1;
 	swapChainDesc.SampleDesc.Quality = bMultiSample ? (mMultiSampleLevel - 1) : 0;
-	dxgiFactory->CreateSwapChain(commandQueue.Get(), &swapChainDesc, swapChain.GetAddressOf());
+	createResult = dxgiFactory->CreateSwapChain(commandQueue.Get(), &swapChainDesc, swapChain.GetAddressOf());
+	if (FAILED(createResult)) {
+		ZLog_error(" CreateSwapChain error = % i", (int)createResult);
+	}
+
+	//å †èµ„æºæè¿°ç¬¦
+	D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc;//æ¸²æŸ“ç›®æ ‡æè¿°ç¬¦
+	D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc;//æ·±åº¦ç¼“å†²æè¿°ç¬¦
+	rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;//æ¸²æŸ“åˆ°ç›®æ ‡è§†å›¾
+	rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	rtvHeapDesc.NodeMask = 0;
+	rtvHeapDesc.NumDescriptors = ZEngineRenderConfig::GetRenderConfig()->mSwapChainCount;//å‰åä¸¤ä¸ªç¼“å†²åŒº
+	dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;//æ¸²æŸ“åˆ°æ·±åº¦è§†å›¾
+	dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	dsvHeapDesc.NodeMask = 0;
+	dsvHeapDesc.NumDescriptors = 1;//ä¸€ä¸ªæ·±åº¦ç¼“å†²åŒºå°±å¤Ÿç”¨äº†
+	ANALYSIS_HRESULT(d3dDevice->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(RTVHeap.GetAddressOf())));
+	ANALYSIS_HRESULT(d3dDevice->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(DSVHeap.GetAddressOf())));
 
 	return false;
+}
+void ZEngineWind::WaitGPUCommandQueueComplete()
+{
+	currentFenceIndex++;
+	ANALYSIS_HRESULT(commandQueue->Signal(d3dFence.Get(), currentFenceIndex));
+	if (d3dFence->GetCompletedValue() < currentFenceIndex) {
+		HANDLE eventEX = CreateEventEx(NULL, NULL, 0, EVENT_ALL_ACCESS);
+
+		ANALYSIS_HRESULT(d3dFence->SetEventOnCompletion(currentFenceIndex, eventEX));
+
+		WaitForSingleObject(eventEX, INFINITE);
+		CloseHandle(eventEX);
+	}
 }
 #endif
