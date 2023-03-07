@@ -13,8 +13,15 @@ int WINAPI WinMain(HINSTANCE thisInstance, HINSTANCE preInstance, LPSTR cmdLine,
 	int result = Init(engine, thisInstance, preInstance, cmdLine, showCmd);
 
 	//渲染
-	while (true) {
-		Tick(engine);
+	MSG msg = { 0 };
+	while (msg.message != WM_QUIT) {
+		if (PeekMessage(&msg, 0, 0, 0, PM_REMOVE)) {
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+		}
+		else {
+			Tick(engine);
+		}
 	}
 
 	//退出
@@ -45,7 +52,10 @@ int Init(ZEngine* engine, HINSTANCE thisInstance, HINSTANCE preInstance, LPSTR c
 	return notsuccess;
 }
 void Tick(ZEngine* engine) {
-	engine->Tick();
+
+	float deltaTime = 0.1f;
+	engine->Tick(deltaTime);
+	Sleep(20);
 }
 int Exit(ZEngine* engine) {
 	int notsuccess = engine->PreExit();

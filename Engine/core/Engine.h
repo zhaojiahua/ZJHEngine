@@ -23,7 +23,7 @@ public:
 	virtual int PostInit() = 0;
 
 	//渲染循环主体函数
-	virtual void Tick() = 0;
+	virtual void Tick(float deltaTime) = 0;
 
 	//引擎预退出
 	virtual int PreExit() = 0;

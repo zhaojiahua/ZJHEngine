@@ -11,11 +11,18 @@ public:
 	virtual int Init(ZWinMainCmdParameters inparas);
 	virtual int PostInit();
 
-	virtual void Tick();
+	virtual void Tick(float deltaTime);
 
 	virtual int PreExit();
 	virtual int Exit();
 	virtual int PostExit();
+
+	//获取当前指向的资源内存
+	ID3D12Resource* GetCurrentSwapBuffer() const;
+	//获取当前的堆资源描述
+	D3D12_CPU_DESCRIPTOR_HANDLE GetCurrentSwapBufferView() const;
+	//获取深度模版缓冲堆描述
+	D3D12_CPU_DESCRIPTOR_HANDLE GetCurrentDepthStencilView() const;
 
 private:
 	//��ʼ��windows

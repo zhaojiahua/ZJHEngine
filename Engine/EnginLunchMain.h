@@ -2,8 +2,10 @@
 #include "../simple_library/public/simple_library.h"
 #include "Debugs/Logs/SimpleLog.h"
 
+#include <vector>
+
 #include <wrl.h>	//����window��Ⱦ�Ļ����Ŀ�
-#include <dxgi1_4.h>	//
+#include <dxgi1_6.h>	//
 //#include <d3d12.h>	//d3d12��API
 #include "rendering/DirectX12/d3dx12.h"	//微软提供的工具包,这里面包含了<d3d12.h>
 #include <D3Dcompiler.h>	//����������ɫ������

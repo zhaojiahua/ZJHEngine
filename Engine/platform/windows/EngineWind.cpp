@@ -62,8 +62,7 @@ int ZEngineWind::PostInit()
 	//渲染目标Buffer
 	mRTVDescSize = d3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);//获取RTV渲染缓冲的大小
 	CD3DX12_CPU_DESCRIPTOR_HANDLE heapHandle(RTVHeap->GetCPUDescriptorHandleForHeapStart());//获取堆资源位置
-	heapHandle.ptr = 0;
-	for (int i = 0; i < ZEngineRenderConfig::GetRenderConfig()->mSwapChainCount; i++) {
+	for (UINT i = 0; i < ZEngineRenderConfig::GetRenderConfig()->mSwapChainCount; i++) {
 		swapChain->GetBuffer(i, IID_PPV_ARGS(&mSwapBuffers[i]));
 		d3dDevice->CreateRenderTargetView(mSwapBuffers[i].Get(), nullptr, heapHandle);
 		heapHandle.Offset(1, mRTVDescSize);
@@ -119,9 +118,39 @@ int ZEngineWind::PostInit()
 	return 0;
 }
 
-void ZEngineWind::Tick()
+void ZEngineWind::Tick(float deltaTime)
 {
+	//重置相关内存
+	ANALYSIS_HRESULT(commandAllocator->Reset());
+	//重置命令列表
+	commandList->Reset(commandAllocator.Get(), NULL);
+	//转换资源指向状态
+	CD3DX12_RESOURCE_BARRIER tempBarrier = CD3DX12_RESOURCE_BARRIER::Transition(GetCurrentSwapBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+	commandList->ResourceBarrier(1, &tempBarrier);
 
+	commandList->RSSetViewports(1, &viewportInfo);
+	commandList->RSSetScissorRects(1, &viewportRect);
+	//清除画布颜色
+	D3D12_CPU_DESCRIPTOR_HANDLE cuswapBufferView = GetCurrentSwapBufferView();
+	D3D12_CPU_DESCRIPTOR_HANDLE cudepthStencilBufferView = GetCurrentDepthStencilView();
+	commandList->ClearRenderTargetView(cuswapBufferView, DirectX::Colors::Beige, 1, &viewportRect);
+	//清除深度模版缓存
+	//commandList->ClearDepthStencilView(cudepthStencilBufferView, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 1, &viewportRect);
+	//输出合并阶段
+	commandList->OMSetRenderTargets(1, &cuswapBufferView, true, &cudepthStencilBufferView);
+	//设置渲染状态
+	CD3DX12_RESOURCE_BARRIER tempBarrier2 = CD3DX12_RESOURCE_BARRIER::Transition(GetCurrentSwapBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+	commandList->ResourceBarrier(1, &tempBarrier2);
+	//关闭命令队列
+	ANALYSIS_HRESULT(commandList->Close());
+	//提交命令
+	ID3D12CommandList* cmdList[] = { commandList.Get() };
+	commandQueue->ExecuteCommandLists(_countof(cmdList), cmdList);
+	//交换缓冲区
+	ANALYSIS_HRESULT(swapChain->Present(0, 0));
+	currentSwapBufferIndex = !(bool)currentSwapBufferIndex;
+	//等待GPU处理
+	WaitGPUCommandQueueComplete();
 }
 
 int ZEngineWind::PreExit()
@@ -141,6 +170,18 @@ int ZEngineWind::PostExit()
 	ZEngineRenderConfig::Destroy();
 	ZLog_sucess("Engine postExit complete.");
 	return 0;
+}
+ID3D12Resource* ZEngineWind::GetCurrentSwapBuffer() const
+{
+	return mSwapBuffers[currentSwapBufferIndex].Get();
+}
+D3D12_CPU_DESCRIPTOR_HANDLE ZEngineWind::GetCurrentSwapBufferView() const
+{
+	return CD3DX12_CPU_DESCRIPTOR_HANDLE(RTVHeap->GetCPUDescriptorHandleForHeapStart(), currentSwapBufferIndex, mRTVDescSize);
+}
+D3D12_CPU_DESCRIPTOR_HANDLE ZEngineWind::GetCurrentDepthStencilView() const
+{
+	return DSVHeap->GetCPUDescriptorHandleForHeapStart();
 }
 bool ZEngineWind::InitWindow(ZWinMainCmdParameters inparas)
 {
@@ -300,4 +341,5 @@ void ZEngineWind::WaitGPUCommandQueueComplete()
 		CloseHandle(eventEX);
 	}
 }
+
 #endif
