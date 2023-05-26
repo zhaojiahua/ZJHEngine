@@ -185,44 +185,45 @@ D3D12_CPU_DESCRIPTOR_HANDLE ZEngineWind::GetCurrentDepthStencilView() const
 }
 bool ZEngineWind::InitWindow(ZWinMainCmdParameters inparas)
 {
+	//窗口类定义
 	WNDCLASSEX windClass;
-	windClass.cbSize = sizeof(WNDCLASSEX);//�Ķ���ռ���ڴ��С
-	windClass.cbClsExtra = 0;//�Ƿ���Ҫ����ռ�
-	windClass.cbWndExtra = 0;//�Ƿ���Ҫ�����ڴ� 
-	windClass.hbrBackground = nullptr;//Ĭ��GDI��������
-	windClass.hCursor = LoadCursor(NULL, IDC_ARROW);//����һ����ͷ���
-	windClass.hIcon = nullptr;//Ӧ�ó�����ڴ�������ʾ��ͼ��
-	windClass.hIconSm = NULL;//Ӧ�ó������Ͻ���ʾ��ͼ��
-	windClass.hInstance = inparas.mPreInstance;//����ʵ��
-	windClass.lpszClassName = L"ZJHEngine";//��������
+	windClass.cbSize = sizeof(WNDCLASSEX);//窗口类的实例占用多大内存
+	windClass.cbClsExtra = 0;//类是否需要额外空间
+	windClass.cbWndExtra = 0;//实例是否需要额外内存
+	windClass.hbrBackground = nullptr;//窗口背景颜色,如果没有设置就是GDI擦除
+	windClass.hCursor = LoadCursor(NULL, IDC_ARROW);//鼠标箭头风格
+	windClass.hIcon = nullptr;//应用程序在磁盘显示的图标
+	windClass.hIconSm = NULL;//窗口左上角的小图标
+	windClass.hInstance = inparas.mPreInstance;//窗口实例
+	windClass.lpszClassName = L"ZJHEngine";//窗口名字
 	windClass.lpszMenuName = nullptr;
-	windClass.style = CS_VREDRAW | CS_HREDRAW;//��ֱ��ˮƽ�ػ���
-	windClass.lpfnWndProc = (WNDPROC)EngineWndProc;//������Ϣ�Ļص�����
+	windClass.style = CS_VREDRAW | CS_HREDRAW;//绘制窗口风格,垂直和水平绘制
+	windClass.lpfnWndProc = (WNDPROC)EngineWndProc;//消息处理回调函数
 
-	//ע�ᴰ��
+	//注册窗口
 	ATOM registerAtom = RegisterClassEx(&windClass);
 	if (!registerAtom) {
 		ZLog_error("Register window failed.");
 		MessageBox(NULL, L"Register failed", L"Error", MB_OK);
 	}
-	//���ô���
+	//窗口分辨率
 	RECT rect = { 0,0,ZEngineRenderConfig::GetRenderConfig()->mScreenWidth,ZEngineRenderConfig::GetRenderConfig()->mScreenHeight };//���ڷֱ���
 	AdjustWindowRect(&rect, WS_OVERLAPPEDWINDOW, NULL);
 
 	int wndwidth = rect.right - rect.left;
 	int wndheight = rect.bottom - rect.top;
 
-	//��������ʵ��
+	//创建窗口实例
 	mHwnd = CreateWindowEx(
-		NULL,//���ڶ�����
-		L"ZJHEngine",//������
-		L"ZJHEngineWnd",//��ʾ�ڴ��ڱ�����������
-		WS_OVERLAPPEDWINDOW,//���ڷ��
-		100,100,//��������
-		wndwidth, wndheight,//���ڿ��
-		NULL,//�����ھ��
-		nullptr,//�˵����
-		inparas.mPreInstance,//����ʵ��
+		NULL,//窗口额外的风格
+		L"ZJHEngine",//窗口名称
+		L"ZJHEngineWnd",//窗口标题栏
+		WS_OVERLAPPEDWINDOW,//窗口风格
+		100,100,//窗口左上角坐标
+		wndwidth, wndheight,//窗口宽高
+		NULL,//副窗口句柄
+		nullptr,//菜单句柄
+		inparas.mPreInstance,//窗口实例
 		NULL
 	);
 	if (!mHwnd) {
@@ -231,8 +232,8 @@ bool ZEngineWind::InitWindow(ZWinMainCmdParameters inparas)
 		return false;
 	}
 
-	ShowWindow(mHwnd, SW_SHOW);
-	UpdateWindow(mHwnd);
+	ShowWindow(mHwnd, SW_SHOW);//显示窗口
+	UpdateWindow(mHwnd);//窗口刷新
 	ZLog_sucess("Windows Initialization complete.");
 	return true;
 }

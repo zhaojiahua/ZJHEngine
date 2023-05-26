@@ -25,9 +25,9 @@ public:
 	D3D12_CPU_DESCRIPTOR_HANDLE GetCurrentDepthStencilView() const;
 
 private:
-	//��ʼ��windows
+	//初始化windows窗口
 	bool InitWindow(ZWinMainCmdParameters inparas);
-	//��ʼ��D3D
+	//初始化D3D
 	bool InitDirect3D();
 
 protected:
@@ -50,18 +50,18 @@ protected:
 
 protected:
 	Microsoft::WRL::ComPtr<IDXGIFactory4> dxgiFactory;	//����DXͼ�λ����ṹ
-	Microsoft::WRL::ComPtr<ID3D12Device> d3dDevice;	//��������������
-	Microsoft::WRL::ComPtr<ID3D12Fence> d3dFence;	//"Χ��",ƽ��CPU��GPU֮��ļ���
+	Microsoft::WRL::ComPtr<ID3D12Device> d3dDevice;	//设备(显卡)驱动
+	Microsoft::WRL::ComPtr<ID3D12Fence> d3dFence;	//"围栏",平衡CPU和GPU之间的同步工作
 
-	Microsoft::WRL::ComPtr<ID3D12CommandQueue> commandQueue;//GPU�������
-	Microsoft::WRL::ComPtr<ID3D12CommandAllocator> commandAllocator;//���������
-	Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> commandList;//CPU�����б�
+	Microsoft::WRL::ComPtr<ID3D12CommandQueue> commandQueue;//GPU命令队列
+	Microsoft::WRL::ComPtr<ID3D12CommandAllocator> commandAllocator;//命令分配器,用来管理命令列表中命令的结构
+	Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> commandList;//CPU命令列表
 
 	Microsoft::WRL::ComPtr<IDXGISwapChain> swapChain;//交换链
 
-	//资源描述符和堆
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> RTVHeap;
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> DSVHeap;
+	//资源描述符和堆(每次DrawCall之前都需要将本次绘制的相关资源绑定到渲染流水线上,描述符就是送往GPU向GPU描述资源的轻量结构)
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> RTVHeap;//渲染目标视图描述符堆
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> DSVHeap;//深度模版视图描述符堆
 
 	//资源
 	vector<Microsoft::WRL::ComPtr<ID3D12Resource>> mSwapBuffers;

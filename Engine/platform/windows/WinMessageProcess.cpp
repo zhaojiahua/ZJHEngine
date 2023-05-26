@@ -10,5 +10,6 @@ LRESULT EngineWndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 	default:
 		break;
 	}
+	//其它的交给Windows自己处理
 	return DefWindowProc(hwnd, msg, wparam, lparam);
 }
