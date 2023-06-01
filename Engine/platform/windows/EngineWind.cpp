@@ -2,6 +2,8 @@
 #include "WinMessageProcess.h"
 #include "../../Debugs/EngineDebug.h"
 #include "../../config/EngineConfig.h"
+#include "../../rendering/core/Rendering.h"
+#include "../../mesh/BoxMesh.h"
 
 #if defined(_WIN32)
 ZEngineWind::ZEngineWind()
@@ -9,10 +11,10 @@ ZEngineWind::ZEngineWind()
 	bMultiSample(false),
 	mHwnd(NULL),
 	mBackBufferFormat(DXGI_FORMAT::DXGI_FORMAT_B8G8R8A8_UNORM),
-	mDepthStencilFormat(DXGI_FORMAT_D24_UNORM_S8_UINT),
+	mDepthStencilFormat(DXGI_FORMAT::DXGI_FORMAT_D24_UNORM_S8_UINT),
 	currentFenceIndex(0),currentSwapBufferIndex(0)
 {
-	for (int i = 0; i < ZEngineRenderConfig::GetRenderConfig()->mSwapChainCount; i++) {
+	for (int i = 0; i < ZEngineRenderConfig::GetRenderConfig()->mSwapChainCount; ++i) {
 		mSwapBuffers.push_back(Microsoft::WRL::ComPtr<ID3D12Resource>());
 	}
 }
@@ -46,60 +48,61 @@ int ZEngineWind::Init(ZWinMainCmdParameters inparas)
 int ZEngineWind::PostInit()
 {
 	WaitGPUCommandQueueComplete();
-	//初始化缓冲区
+	//初始化缓冲区(前面创建了两个缓冲区,在这里进行初始化)
 	for (auto item : mSwapBuffers) {
 		item.Reset();
 	}
-	mDepthStencilBuffer.Reset();//初始化深度缓冲区
-	//交换链缓冲区自适应设置
+	mDepthStencilBuffer.Reset();//深度模版缓冲区也初始化
+	//交换链缓冲区自适应设置(设置缓冲视图的尺寸,两个缓冲区大小一致)
 	swapChain->ResizeBuffers(
 		ZEngineRenderConfig::GetRenderConfig()->mSwapChainCount,
 		ZEngineRenderConfig::GetRenderConfig()->mScreenWidth,
 		ZEngineRenderConfig::GetRenderConfig()->mScreenHeight,
 		mBackBufferFormat, DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH);
 
-	//绑定资源
+	//绑定资源到流水线上
 	//渲染目标Buffer
-	mRTVDescSize = d3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);//获取RTV渲染缓冲的大小
-	CD3DX12_CPU_DESCRIPTOR_HANDLE heapHandle(RTVHeap->GetCPUDescriptorHandleForHeapStart());//获取堆资源位置
-	for (UINT i = 0; i < ZEngineRenderConfig::GetRenderConfig()->mSwapChainCount; i++) {
-		swapChain->GetBuffer(i, IID_PPV_ARGS(&mSwapBuffers[i]));
-		d3dDevice->CreateRenderTargetView(mSwapBuffers[i].Get(), nullptr, heapHandle);
+	mRTVDescSize = d3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);//获取RTV描述符堆的大小
+	CD3DX12_CPU_DESCRIPTOR_HANDLE heapHandle(RTVHeap->GetCPUDescriptorHandleForHeapStart());//获取资源描述堆句柄,用这个句柄访问这个描述堆
+	for (UINT i = 0; i < ZEngineRenderConfig::GetRenderConfig()->mSwapChainCount; ++i) {
+		swapChain->GetBuffer(i, IID_PPV_ARGS(&mSwapBuffers[i]));	//缓冲区资源绑定到交换链
+		d3dDevice->CreateRenderTargetView(mSwapBuffers[i].Get(), nullptr, heapHandle);	//根据资源描述符句柄创建默认格式的RTV资源
 		heapHandle.Offset(1, mRTVDescSize);
 	}
 	
 	D3D12_RESOURCE_DESC resourceDesc;
 	resourceDesc.Width = ZEngineRenderConfig::GetRenderConfig()->mScreenWidth;
 	resourceDesc.Height = ZEngineRenderConfig::GetRenderConfig()->mScreenHeight;
-	resourceDesc.Alignment = 0;
+	resourceDesc.Alignment = 0;//默认对齐方式
 	resourceDesc.MipLevels = 1;
-	resourceDesc.DepthOrArraySize = 1;
-	resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	resourceDesc.DepthOrArraySize = 1;//
+	resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;//2D贴图资源
 	resourceDesc.SampleDesc.Count = bMultiSample ? 4 : 1;
 	resourceDesc.SampleDesc.Count = bMultiSample ? (mMultiSampleLevel - 1) : 0;
 	resourceDesc.Format = DXGI_FORMAT_R24G8_TYPELESS;
-	resourceDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
-	resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+	resourceDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;//允许使用深度模版
+	resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;//默认资源布局
 	D3D12_CLEAR_VALUE clearValue;
 	clearValue.DepthStencil.Depth = 1.0;
 	clearValue.DepthStencil.Stencil = 0;
 	clearValue.Format = mDepthStencilFormat;
-	CD3DX12_HEAP_PROPERTIES tempProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+	CD3DX12_HEAP_PROPERTIES tempProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);		//创建默认堆,通过这个堆,CPU上传数据到GPU
 	d3dDevice->CreateCommittedResource(&tempProperties, D3D12_HEAP_FLAG_NONE, &resourceDesc, D3D12_RESOURCE_STATE_COMMON, &clearValue, IID_PPV_ARGS(mDepthStencilBuffer.GetAddressOf()));
+	
 	//深度模版Buffer
 	D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
 	dsvDesc.Format = mDepthStencilFormat;
 	dsvDesc.Texture2D.MipSlice = 0;
 	dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
 	dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
-	d3dDevice->CreateDepthStencilView(mDepthStencilBuffer.Get(), &dsvDesc, DSVHeap->GetCPUDescriptorHandleForHeapStart());
+	d3dDevice->CreateDepthStencilView(mDepthStencilBuffer.Get(), &dsvDesc, DSVHeap->GetCPUDescriptorHandleForHeapStart());	//根据深度缓冲描述创建深度缓冲视图
 
+	//创建资源的"围栏",负责资源同步,资源状态的转换
 	CD3DX12_RESOURCE_BARRIER tempBarrier = CD3DX12_RESOURCE_BARRIER::Transition(mDepthStencilBuffer.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_DEPTH_WRITE);
 	commandList->ResourceBarrier(1, &tempBarrier);
 	commandList->Close();
 	//提交命令
-	ID3D12CommandList* cmdList[] = { commandList.Get() };
-	commandQueue->ExecuteCommandLists(_countof(cmdList), cmdList);
+	SubmitCommandList();
 
 	//视图窗口设置
 	viewportInfo.TopLeftX = 0; viewportInfo.TopLeftY = 0;
@@ -115,12 +118,16 @@ int ZEngineWind::PostInit()
 	WaitGPUCommandQueueComplete();
 
 	ZLog_sucess("Engine postInitialization complete.");
+
+	//构建一个BoxMesh
+	BoxMesh* boxmesh = BoxMesh::CreateMesh();
+
 	return 0;
 }
 
 void ZEngineWind::Tick(float deltaTime)
 {
-	//重置相关内存
+	//重置录制相关内存
 	ANALYSIS_HRESULT(commandAllocator->Reset());
 	//重置命令列表
 	commandList->Reset(commandAllocator.Get(), NULL);
@@ -133,22 +140,27 @@ void ZEngineWind::Tick(float deltaTime)
 	//清除画布颜色
 	D3D12_CPU_DESCRIPTOR_HANDLE cuswapBufferView = GetCurrentSwapBufferView();
 	D3D12_CPU_DESCRIPTOR_HANDLE cudepthStencilBufferView = GetCurrentDepthStencilView();
-	commandList->ClearRenderTargetView(cuswapBufferView, DirectX::Colors::Beige, 1, &viewportRect);
+	commandList->ClearRenderTargetView(cuswapBufferView, DirectX::Colors::Bisque, 1, &viewportRect);
 	//清除深度模版缓存
-	//commandList->ClearDepthStencilView(cudepthStencilBufferView, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 1, &viewportRect);
+	//commandList->ClearDepthStencilView(cudepthStencilBufferView, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.f, 0, 0, &viewportRect);
 	//输出合并阶段
 	commandList->OMSetRenderTargets(1, &cuswapBufferView, true, &cudepthStencilBufferView);
+
+	//渲染场景内容到RTV
+	for (auto item : IRenderingInterface::renderingInterfaces) {
+		item->Draw(deltaTime);
+	}
+
 	//设置渲染状态
 	CD3DX12_RESOURCE_BARRIER tempBarrier2 = CD3DX12_RESOURCE_BARRIER::Transition(GetCurrentSwapBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
 	commandList->ResourceBarrier(1, &tempBarrier2);
-	//关闭命令队列
+	//关闭命令列表
 	ANALYSIS_HRESULT(commandList->Close());
 	//提交命令
-	ID3D12CommandList* cmdList[] = { commandList.Get() };
-	commandQueue->ExecuteCommandLists(_countof(cmdList), cmdList);
-	//交换缓冲区
-	ANALYSIS_HRESULT(swapChain->Present(0, 0));
-	currentSwapBufferIndex = !(bool)currentSwapBufferIndex;
+	SubmitCommandList();
+	//呈现并交换缓冲区
+	ANALYSIS_HRESULT(swapChain->Present(0, 0));	//呈现缓冲区
+	currentSwapBufferIndex = !(bool)currentSwapBufferIndex;	//交换一下缓冲区索引
 	//等待GPU处理
 	WaitGPUCommandQueueComplete();
 }
@@ -243,43 +255,43 @@ bool ZEngineWind::InitDirect3D()
 	//Debug
 	Microsoft::WRL::ComPtr<ID3D12Debug> d3dDebug;
 	if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&d3dDebug)))) {
-		d3dDebug->EnableDebugLayer();
+		d3dDebug->EnableDebugLayer();//开启Debug调试层,可以吧一些错误信息打印到VS输出窗口
 	}
 
 	ANALYSIS_HRESULT(CreateDXGIFactory1(IID_PPV_ARGS(&dxgiFactory)));	//创建引擎工厂
 
-	HRESULT d3dDeviceResult = D3D12CreateDevice(NULL, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&d3dDevice));//创建引擎驱动
+	HRESULT d3dDeviceResult = D3D12CreateDevice(NULL, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&d3dDevice));//创建显卡驱动
 	if (FAILED(d3dDeviceResult)) {
 		//如果硬件驱动不成功就创建软件驱动
 		Microsoft::WRL::ComPtr<IDXGIAdapter> warpAdapter;
 		ANALYSIS_HRESULT(dxgiFactory->EnumWarpAdapter(IID_PPV_ARGS(&warpAdapter)));
 		ANALYSIS_HRESULT(D3D12CreateDevice(warpAdapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&d3dDevice)));
 	}
-	ANALYSIS_HRESULT(d3dDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&d3dFence)));//����Fence
+	ANALYSIS_HRESULT(d3dDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&d3dFence)));//创建Fence
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////��ʼ���������
 	D3D12_COMMAND_QUEUE_DESC cmdQueueDesc = {};
-	cmdQueueDesc.Type = D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_DIRECT;//ֱ�ӱ�GPU����
-	cmdQueueDesc.Flags = D3D12_COMMAND_QUEUE_FLAGS::D3D12_COMMAND_QUEUE_FLAG_NONE;//�������ʱ
-	//�����������
+	cmdQueueDesc.Type = D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_DIRECT;//GPU直接执行
+	cmdQueueDesc.Flags = D3D12_COMMAND_QUEUE_FLAGS::D3D12_COMMAND_QUEUE_FLAG_NONE;
+	//命令队列
 	ANALYSIS_HRESULT(d3dDevice->CreateCommandQueue(&cmdQueueDesc, IID_PPV_ARGS(&commandQueue)));
-	//����������
+	//命令分配器
 	ANALYSIS_HRESULT(d3dDevice->CreateCommandAllocator(
 		D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_DIRECT,
 		IID_PPV_ARGS(commandAllocator.GetAddressOf())));
-	//���������б�
+	//命令列表
 	HRESULT createResult = d3dDevice->CreateCommandList(
-		0,//Ĭ�ϵ���GPU
-		D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_DIRECT,//ֱ�ӵ���
-		commandAllocator.Get(),//�������������
-		NULL	//����״̬
+		0,//默认单个GPU
+		D3D12_COMMAND_LIST_TYPE::D3D12_COMMAND_LIST_TYPE_DIRECT,//直接执行命令
+		commandAllocator.Get(),//将CommandList关联到Allocator
+		NULL	//管线状态,NULL的话它会自己设置一个虚拟管线状态
 		, IID_PPV_ARGS(commandList.GetAddressOf()));
 	if (FAILED(createResult)) {
 		ZLog_error(" commandList error = % i", (int)createResult);
 	}
-	commandList->Close();//�رյ�ǰ�б�
+	commandList->Close();//关闭列表
 
-	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////����������
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////判断多重采样的支持情况
 	D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS qualityLevel;
 	qualityLevel.SampleCount = 4;
 	qualityLevel.Flags = D3D12_MULTISAMPLE_QUALITY_LEVEL_FLAGS::D3D12_MULTISAMPLE_QUALITY_LEVELS_FLAG_NONE;
@@ -299,10 +311,10 @@ bool ZEngineWind::InitDirect3D()
 	swapChainDesc.BufferDesc.RefreshRate.Denominator = 1;
 	swapChainDesc.BufferCount = ZEngineRenderConfig::GetRenderConfig()->mSwapChainCount;
 	swapChainDesc.BufferDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER::DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
-	swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;//ʹ�ñ������Դ��Ϊ�����ȾĿ��
-	swapChainDesc.OutputWindow = mHwnd;//ָ��������
-	swapChainDesc.Windowed = true;//�Դ��ڷ�ʽ����
-	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT::DXGI_SWAP_EFFECT_FLIP_DISCARD;//�����������
+	swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;//使用表面或资源作为输出渲染目标
+	swapChainDesc.OutputWindow = mHwnd;//绑定主窗口
+	swapChainDesc.Windowed = true;//非全屏模式(窗口模型运行)
+	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT::DXGI_SWAP_EFFECT_FLIP_DISCARD;//交换完后直接丢弃
 	swapChainDesc.Flags = DXGI_SWAP_CHAIN_FLAG::DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
 	swapChainDesc.BufferDesc.Format = mBackBufferFormat;
 	//采样设置
@@ -313,10 +325,10 @@ bool ZEngineWind::InitDirect3D()
 		ZLog_error(" CreateSwapChain error = % i", (int)createResult);
 	}
 
-	//堆资源描述符
+	//资源描述符堆的创建
 	D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc;//渲染目标描述符
 	D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc;//深度缓冲描述符
-	rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;//渲染到目标视图
+	rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;//渲染目标视图
 	rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 	rtvHeapDesc.NodeMask = 0;
 	rtvHeapDesc.NumDescriptors = ZEngineRenderConfig::GetRenderConfig()->mSwapChainCount;//前后两个缓冲区
@@ -332,15 +344,20 @@ bool ZEngineWind::InitDirect3D()
 void ZEngineWind::WaitGPUCommandQueueComplete()
 {
 	currentFenceIndex++;
-	ANALYSIS_HRESULT(commandQueue->Signal(d3dFence.Get(), currentFenceIndex));
+	ANALYSIS_HRESULT(commandQueue->Signal(d3dFence.Get(), currentFenceIndex));//等待GPU处理完信号
 	if (d3dFence->GetCompletedValue() < currentFenceIndex) {
-		HANDLE eventEX = CreateEventEx(NULL, NULL, 0, EVENT_ALL_ACCESS);
+		HANDLE eventEX = CreateEventEx(NULL, NULL, 0, EVENT_ALL_ACCESS);		//创建一个事件内核对象并返回该内核对象句柄(锁)
+		ANALYSIS_HRESULT(d3dFence->SetEventOnCompletion(currentFenceIndex, eventEX));	//GPU完成后会通知eventEX HANDLE
 
-		ANALYSIS_HRESULT(d3dFence->SetEventOnCompletion(currentFenceIndex, eventEX));
-
-		WaitForSingleObject(eventEX, INFINITE);
-		CloseHandle(eventEX);
+		WaitForSingleObject(eventEX, INFINITE);//阻塞CPU,无限等待eventEX
+		CloseHandle(eventEX);	//等到了eventEX后关闭事件(锁),开始执行后续任务
 	}
+}
+
+void ZEngineWind::SubmitCommandList()
+{
+	ID3D12CommandList* cmdList[] = { commandList.Get() };
+	commandQueue->ExecuteCommandLists(_countof(cmdList), cmdList);
 }
 
 #endif

@@ -12,12 +12,12 @@ int WINAPI WinMain(HINSTANCE thisInstance, HINSTANCE preInstance, LPSTR cmdLine,
 	//初始化
 	int result = Init(engine, thisInstance, preInstance, cmdLine, showCmd);
 
-	//渲染
+	//渲染出图
 	MSG msg = { 0 };
 	while (msg.message != WM_QUIT) {
 		if (PeekMessage(&msg, 0, 0, 0, PM_REMOVE)) {
-			TranslateMessage(&msg);
-			DispatchMessage(&msg);
+			TranslateMessage(&msg);//翻译消息
+			DispatchMessage(&msg);//派发消息
 		}
 		else {
 			Tick(engine);

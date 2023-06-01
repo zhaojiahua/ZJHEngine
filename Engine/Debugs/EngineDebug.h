@@ -3,11 +3,11 @@
 #define ANALYSIS_HRESULT(inValue) \
 {\
 	HRESULT handleResult = inValue;\
-	if (FAILED(inValue)) \
+	if (FAILED(handleResult)) \
 	{\
-		ZLog_error("error = %i",(int)inValue);\
+		ZLog_error("error = %i",(int)handleResult);\
 	}\
-	else if (SUCCEEDED(inValue))\
+	else if (SUCCEEDED(handleResult))\
 	{\
 		ZLog_sucess("success !");\
 	}\

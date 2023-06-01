@@ -31,7 +31,10 @@ private:
 	bool InitDirect3D();
 
 protected:
+	//等待GPU处理完命令
 	void WaitGPUCommandQueueComplete();
+	//把命令列表提交到命令队列
+	void SubmitCommandList();
 
 protected:
 	HWND mHwnd;//�����ھ��
@@ -49,7 +52,7 @@ protected:
 	D3D12_RECT viewportRect;
 
 protected:
-	Microsoft::WRL::ComPtr<IDXGIFactory4> dxgiFactory;	//����DXͼ�λ����ṹ
+	Microsoft::WRL::ComPtr<IDXGIFactory4> dxgiFactory;	//DXGI,负责图形基础结构的创建
 	Microsoft::WRL::ComPtr<ID3D12Device> d3dDevice;	//设备(显卡)驱动
 	Microsoft::WRL::ComPtr<ID3D12Fence> d3dFence;	//"围栏",平衡CPU和GPU之间的同步工作
 
@@ -60,12 +63,12 @@ protected:
 	Microsoft::WRL::ComPtr<IDXGISwapChain> swapChain;//交换链
 
 	//资源描述符和堆(每次DrawCall之前都需要将本次绘制的相关资源绑定到渲染流水线上,描述符就是送往GPU向GPU描述资源的轻量结构)
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> RTVHeap;//渲染目标视图描述符堆
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> DSVHeap;//深度模版视图描述符堆
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> RTVHeap;//渲染目标视图描述符堆,2个,对应交换链的前后缓冲区
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> DSVHeap;//深度模版视图描述符堆1个就够了
 
 	//资源
-	vector<Microsoft::WRL::ComPtr<ID3D12Resource>> mSwapBuffers;
-	Microsoft::WRL::ComPtr<ID3D12Resource> mDepthStencilBuffer;
+	vector<Microsoft::WRL::ComPtr<ID3D12Resource>> mSwapBuffers;	//渲染目标视图资源,最终的渲染结果都存储在这里
+	Microsoft::WRL::ComPtr<ID3D12Resource> mDepthStencilBuffer;	//深度缓冲视图资源,存放深度值
 
 };
 #endif
