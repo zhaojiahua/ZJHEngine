@@ -4,6 +4,7 @@
 #include "../../core/Engine.h"
 class ZEngineWind : public ZEngine
 {
+	friend class IRenderingInterface;
 public:
 	ZEngineWind();
 

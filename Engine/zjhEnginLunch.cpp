@@ -6,21 +6,26 @@ int Init(ZEngine* engine, HINSTANCE thisInstance, HINSTANCE preInstance, LPSTR c
 void Tick(ZEngine* engine);
 int Exit(ZEngine* engine);
 
+ZEngine* engine = nullptr;
+
 int WINAPI WinMain(HINSTANCE thisInstance, HINSTANCE preInstance, LPSTR cmdLine, int showCmd)
 {
-	ZEngine* engine = ZEngineFactory::CreateEngine();
-	//初始化
-	int result = Init(engine, thisInstance, preInstance, cmdLine, showCmd);
+	int result = 0;
+	engine = ZEngineFactory::CreateEngine();
+	if (engine) {
+		//初始化
+		result = Init(engine, thisInstance, preInstance, cmdLine, showCmd);
 
-	//渲染出图
-	MSG msg = { 0 };
-	while (msg.message != WM_QUIT) {
-		if (PeekMessage(&msg, 0, 0, 0, PM_REMOVE)) {
-			TranslateMessage(&msg);//翻译消息
-			DispatchMessage(&msg);//派发消息
-		}
-		else {
-			Tick(engine);
+		//渲染出图
+		MSG msg = { 0 };
+		while (msg.message != WM_QUIT) {
+			if (PeekMessage(&msg, 0, 0, 0, PM_REMOVE)) {
+				TranslateMessage(&msg);//翻译消息
+				DispatchMessage(&msg);//派发消息
+			}
+			else {
+				Tick(engine);
+			}
 		}
 	}
 

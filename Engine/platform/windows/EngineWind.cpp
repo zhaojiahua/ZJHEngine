@@ -87,7 +87,7 @@ int ZEngineWind::PostInit()
 	clearValue.DepthStencil.Stencil = 0;
 	clearValue.Format = mDepthStencilFormat;
 	CD3DX12_HEAP_PROPERTIES tempProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);		//创建默认堆,通过这个堆,CPU上传数据到GPU
-	d3dDevice->CreateCommittedResource(&tempProperties, D3D12_HEAP_FLAG_NONE, &resourceDesc, D3D12_RESOURCE_STATE_COMMON, &clearValue, IID_PPV_ARGS(mDepthStencilBuffer.GetAddressOf()));
+	ANALYSIS_HRESULT(d3dDevice->CreateCommittedResource(&tempProperties, D3D12_HEAP_FLAG_NONE, &resourceDesc, D3D12_RESOURCE_STATE_COMMON, &clearValue, IID_PPV_ARGS(mDepthStencilBuffer.GetAddressOf())));
 	
 	//深度模版Buffer
 	D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;

@@ -48,7 +48,10 @@ BoxMesh* BoxMesh::CreateMesh()
 	meshrenderingdata.indexData.push_back(0); meshrenderingdata.indexData.push_back(6); meshrenderingdata.indexData.push_back(7);
 	meshrenderingdata.indexData.push_back(0); meshrenderingdata.indexData.push_back(7); meshrenderingdata.indexData.push_back(1);
 
+
+
 	BoxMesh* boxMesh = new BoxMesh;
 	boxMesh->BuildMesh(&meshrenderingdata);
+
 	return boxMesh;
 }

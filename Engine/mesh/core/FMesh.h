@@ -20,9 +20,9 @@ protected:
 	ComPtr<ID3DBlob> mCPUVertexBufferPtr;	//CPU的顶点缓冲区
 	ComPtr<ID3DBlob> mCPUIndexBufferPtr;	//CPU的索引缓冲区
 	ComPtr<ID3D12Resource> mGPUVertexBufferPtr;//GPU的顶点缓冲区
-	ComPtr<ID3D12Resource> mGPUVertexBufferPtr;//GPU的索引缓冲区
+	ComPtr<ID3D12Resource> mGPUIndexBufferPtr;//GPU的索引缓冲区
 	ComPtr<ID3D12Resource> mGPUVertexBufferTempPtr;//CPU向GPU传送顶点数据时候的中间缓冲区
-	ComPtr<ID3D12Resource> mGPUVertexBufferTempPtr;//CPU向GPU传送索引数据时候的中间缓冲区
+	ComPtr<ID3D12Resource> mGPUIndexBufferTempPtr;//CPU向GPU传送索引数据时候的中间缓冲区
 
 private:
 	

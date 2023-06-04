@@ -1,6 +1,7 @@
 #pragma once
 #include "../simple_library/public/simple_library.h"
 #include "Debugs/Logs/SimpleLog.h"
+#include "Debugs/EngineDebug.h"
 
 #include <vector>
 
@@ -15,3 +16,5 @@
 #include <DirectXColors.h>	//颜色相关的名称表
 
 using namespace std;
+
+extern class ZEngine* engine;	//外部变量,作用于程序的整个运行期间
