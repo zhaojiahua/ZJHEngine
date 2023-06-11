@@ -30,6 +30,7 @@ private:
 	bool InitWindow(ZWinMainCmdParameters inparas);
 	//初始化D3D
 	bool InitDirect3D();
+	void PostInitDirect3D();
 
 protected:
 	//等待GPU处理完命令

@@ -23,7 +23,7 @@ protected:
 	ComPtr<ID3D12Device> Getd3dDevice();
 	//获取引擎的GPU命令列表
 	ComPtr<ID3D12GraphicsCommandList> GetdcommandList();
-	//从模型数据创建构建渲染资源
+	//从模型数据创建构建GPU渲染资源
 	ComPtr<ID3D12Resource> ConstructDefaultBuffer(ComPtr<ID3D12Resource>& upTempBuffer, const void* indata, UINT64 indatasize);
 private:
 	static vector<IRenderingInterface*> renderingInterfaces;	//存储所有的renderingInterface

@@ -41,87 +41,22 @@ int ZEngineWind::Init(ZWinMainCmdParameters inparas)
 	if (InitDirect3D()) {
 
 	}
+	PostInitDirect3D();
 	ZLog_sucess("Engine Initialization complete.");
 	return 0;
 }
 
 int ZEngineWind::PostInit()
 {
-	WaitGPUCommandQueueComplete();
-	//初始化缓冲区(前面创建了两个缓冲区,在这里进行初始化)
-	for (auto item : mSwapBuffers) {
-		item.Reset();
-	}
-	mDepthStencilBuffer.Reset();//深度模版缓冲区也初始化
-	//交换链缓冲区自适应设置(设置缓冲视图的尺寸,两个缓冲区大小一致)
-	swapChain->ResizeBuffers(
-		ZEngineRenderConfig::GetRenderConfig()->mSwapChainCount,
-		ZEngineRenderConfig::GetRenderConfig()->mScreenWidth,
-		ZEngineRenderConfig::GetRenderConfig()->mScreenHeight,
-		mBackBufferFormat, DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH);
-
-	//绑定资源到流水线上
-	//渲染目标Buffer
-	mRTVDescSize = d3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);//获取RTV描述符堆的大小
-	CD3DX12_CPU_DESCRIPTOR_HANDLE heapHandle(RTVHeap->GetCPUDescriptorHandleForHeapStart());//获取资源描述堆句柄,用这个句柄访问这个描述堆
-	for (UINT i = 0; i < ZEngineRenderConfig::GetRenderConfig()->mSwapChainCount; ++i) {
-		swapChain->GetBuffer(i, IID_PPV_ARGS(&mSwapBuffers[i]));	//缓冲区资源绑定到交换链
-		d3dDevice->CreateRenderTargetView(mSwapBuffers[i].Get(), nullptr, heapHandle);	//根据资源描述符句柄创建默认格式的RTV资源
-		heapHandle.Offset(1, mRTVDescSize);
-	}
-	
-	D3D12_RESOURCE_DESC resourceDesc;
-	resourceDesc.Width = ZEngineRenderConfig::GetRenderConfig()->mScreenWidth;
-	resourceDesc.Height = ZEngineRenderConfig::GetRenderConfig()->mScreenHeight;
-	resourceDesc.Alignment = 0;//默认对齐方式
-	resourceDesc.MipLevels = 1;
-	resourceDesc.DepthOrArraySize = 1;//
-	resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;//2D贴图资源
-	resourceDesc.SampleDesc.Count = bMultiSample ? 4 : 1;
-	resourceDesc.SampleDesc.Count = bMultiSample ? (mMultiSampleLevel - 1) : 0;
-	resourceDesc.Format = DXGI_FORMAT_R24G8_TYPELESS;
-	resourceDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;//允许使用深度模版
-	resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;//默认资源布局
-	D3D12_CLEAR_VALUE clearValue;
-	clearValue.DepthStencil.Depth = 1.0;
-	clearValue.DepthStencil.Stencil = 0;
-	clearValue.Format = mDepthStencilFormat;
-	CD3DX12_HEAP_PROPERTIES tempProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);		//创建默认堆,通过这个堆,CPU上传数据到GPU
-	ANALYSIS_HRESULT(d3dDevice->CreateCommittedResource(&tempProperties, D3D12_HEAP_FLAG_NONE, &resourceDesc, D3D12_RESOURCE_STATE_COMMON, &clearValue, IID_PPV_ARGS(mDepthStencilBuffer.GetAddressOf())));
-	
-	//深度模版Buffer
-	D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
-	dsvDesc.Format = mDepthStencilFormat;
-	dsvDesc.Texture2D.MipSlice = 0;
-	dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
-	dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
-	d3dDevice->CreateDepthStencilView(mDepthStencilBuffer.Get(), &dsvDesc, DSVHeap->GetCPUDescriptorHandleForHeapStart());	//根据深度缓冲描述创建深度缓冲视图
-
-	//创建资源的"围栏",负责资源同步,资源状态的转换
-	CD3DX12_RESOURCE_BARRIER tempBarrier = CD3DX12_RESOURCE_BARRIER::Transition(mDepthStencilBuffer.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_DEPTH_WRITE);
-	commandList->ResourceBarrier(1, &tempBarrier);
-	commandList->Close();
-	//提交命令
-	SubmitCommandList();
-
-	//视图窗口设置
-	viewportInfo.TopLeftX = 0; viewportInfo.TopLeftY = 0;
-	viewportInfo.Width = ZEngineRenderConfig::GetRenderConfig()->mScreenWidth;
-	viewportInfo.Height = ZEngineRenderConfig::GetRenderConfig()->mScreenHeight;
-	viewportInfo.MinDepth = 0.0f;
-	viewportInfo.MaxDepth = 1.0f;
-
-	viewportRect.left = 0; viewportRect.top = 0;
-	viewportRect.right = ZEngineRenderConfig::GetRenderConfig()->mScreenWidth;
-	viewportRect.bottom = ZEngineRenderConfig::GetRenderConfig()->mScreenHeight;
-
-	WaitGPUCommandQueueComplete();
-
 	ZLog_sucess("Engine postInitialization complete.");
 
+	//初始化命令列表
+	ANALYSIS_HRESULT(commandList->Reset(commandAllocator.Get(), NULL));
 	//构建一个BoxMesh
 	BoxMesh* boxmesh = BoxMesh::CreateMesh();
-
+	ANALYSIS_HRESULT(commandList->Close());
+	SubmitCommandList();
+	WaitGPUCommandQueueComplete();
 	return 0;
 }
 
@@ -142,7 +77,7 @@ void ZEngineWind::Tick(float deltaTime)
 	D3D12_CPU_DESCRIPTOR_HANDLE cudepthStencilBufferView = GetCurrentDepthStencilView();
 	commandList->ClearRenderTargetView(cuswapBufferView, DirectX::Colors::Bisque, 1, &viewportRect);
 	//清除深度模版缓存
-	//commandList->ClearDepthStencilView(cudepthStencilBufferView, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.f, 0, 0, &viewportRect);
+	commandList->ClearDepthStencilView(cudepthStencilBufferView, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.f, 0, 0, &viewportRect);
 	//输出合并阶段
 	commandList->OMSetRenderTargets(1, &cuswapBufferView, true, &cudepthStencilBufferView);
 
@@ -340,6 +275,80 @@ bool ZEngineWind::InitDirect3D()
 	ANALYSIS_HRESULT(d3dDevice->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(DSVHeap.GetAddressOf())));
 
 	return false;
+}
+void ZEngineWind::PostInitDirect3D()
+{
+	WaitGPUCommandQueueComplete();
+	//初始化缓冲区(前面创建了两个缓冲区,在这里进行初始化)
+	for (auto item : mSwapBuffers) {
+		item.Reset();
+	}
+	mDepthStencilBuffer.Reset();//深度模版缓冲区也初始化
+	//交换链缓冲区自适应设置(设置缓冲视图的尺寸,两个缓冲区大小一致)
+	swapChain->ResizeBuffers(
+		ZEngineRenderConfig::GetRenderConfig()->mSwapChainCount,
+		ZEngineRenderConfig::GetRenderConfig()->mScreenWidth,
+		ZEngineRenderConfig::GetRenderConfig()->mScreenHeight,
+		mBackBufferFormat, DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH);
+
+	//绑定资源到流水线上
+	//渲染目标Buffer
+	mRTVDescSize = d3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);//获取RTV描述符堆的大小
+	CD3DX12_CPU_DESCRIPTOR_HANDLE heapHandle(RTVHeap->GetCPUDescriptorHandleForHeapStart());//获取资源描述堆句柄,用这个句柄访问这个描述堆
+	for (UINT i = 0; i < ZEngineRenderConfig::GetRenderConfig()->mSwapChainCount; ++i) {
+		swapChain->GetBuffer(i, IID_PPV_ARGS(&mSwapBuffers[i]));	//缓冲区资源绑定到交换链
+		d3dDevice->CreateRenderTargetView(mSwapBuffers[i].Get(), nullptr, heapHandle);	//根据资源描述符句柄创建默认格式的RTV资源
+		heapHandle.Offset(1, mRTVDescSize);
+	}
+
+	D3D12_RESOURCE_DESC resourceDesc;
+	resourceDesc.Width = ZEngineRenderConfig::GetRenderConfig()->mScreenWidth;
+	resourceDesc.Height = ZEngineRenderConfig::GetRenderConfig()->mScreenHeight;
+	resourceDesc.Alignment = 0;//默认对齐方式
+	resourceDesc.MipLevels = 1;
+	resourceDesc.DepthOrArraySize = 1;//
+	resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;//2D贴图资源
+	resourceDesc.SampleDesc.Count = bMultiSample ? 4 : 1;
+	resourceDesc.SampleDesc.Count = bMultiSample ? (mMultiSampleLevel - 1) : 0;
+	resourceDesc.Format = DXGI_FORMAT_R24G8_TYPELESS;
+	resourceDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;//允许使用深度模版
+	resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;//默认资源布局
+	D3D12_CLEAR_VALUE clearValue;
+	clearValue.DepthStencil.Depth = 1.0;
+	clearValue.DepthStencil.Stencil = 0;
+	clearValue.Format = mDepthStencilFormat;
+	CD3DX12_HEAP_PROPERTIES tempProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);		//创建默认堆,通过这个堆,CPU上传数据到GPU
+	ANALYSIS_HRESULT(d3dDevice->CreateCommittedResource(&tempProperties, D3D12_HEAP_FLAG_NONE, &resourceDesc, D3D12_RESOURCE_STATE_COMMON, &clearValue, IID_PPV_ARGS(mDepthStencilBuffer.GetAddressOf())));
+
+	//深度模版Buffer
+	D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
+	dsvDesc.Format = mDepthStencilFormat;
+	dsvDesc.Texture2D.MipSlice = 0;
+	dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+	dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
+	d3dDevice->CreateDepthStencilView(mDepthStencilBuffer.Get(), &dsvDesc, DSVHeap->GetCPUDescriptorHandleForHeapStart());	//根据深度缓冲描述创建深度缓冲视图
+
+	//创建资源的"围栏",负责资源同步,资源状态的转换
+	CD3DX12_RESOURCE_BARRIER tempBarrier = CD3DX12_RESOURCE_BARRIER::Transition(mDepthStencilBuffer.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+	commandList->ResourceBarrier(1, &tempBarrier);
+	commandList->Close();
+	//提交命令
+	SubmitCommandList();
+
+	//视图窗口设置
+	viewportInfo.TopLeftX = 0; viewportInfo.TopLeftY = 0;
+	viewportInfo.Width = ZEngineRenderConfig::GetRenderConfig()->mScreenWidth;
+	viewportInfo.Height = ZEngineRenderConfig::GetRenderConfig()->mScreenHeight;
+	viewportInfo.MinDepth = 0.0f;
+	viewportInfo.MaxDepth = 1.0f;
+
+	viewportRect.left = 0; viewportRect.top = 0;
+	viewportRect.right = ZEngineRenderConfig::GetRenderConfig()->mScreenWidth;
+	viewportRect.bottom = ZEngineRenderConfig::GetRenderConfig()->mScreenHeight;
+
+	WaitGPUCommandQueueComplete();
+
+	ZLog_sucess("Engine postInitialization complete.");
 }
 void ZEngineWind::WaitGPUCommandQueueComplete()
 {
